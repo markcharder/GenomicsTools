@@ -148,6 +148,10 @@ if (!$reference) {
 	die ("\n$usageShort\n");
 }
 
+if ($filterSNPs and !$depth){
+        die ("\nMust specify depth if filtering SNPs.\n\n");
+}
+
 # Print verbose start message if necessary and create output directory, if necessary.
 PanGenome::General::verboseMessage("\nScript began at $time\n", $verbose);
 PanGenome::General::outputDir($prefix);
@@ -192,9 +196,8 @@ if ($nucmer){
         my $nucsnps;
         if (! $snpfile) {
                 ($snpfile, $nucsnps)    = PanGenome::CallVariants::callWithNucmer($prefix, $reference, $alt);
+        	PanGenome::General::verboseMessage("\nCalled variants with nucmer at $time.\n", $verbose);
         }
-        PanGenome::General::getFastaSeqs($alt, $nucsnps, "inverse", $prefix);
-        PanGenome::General::verboseMessage("\nCalled variants with nucmer at $time.\n", $verbose);
   }
 
 # If the filter-snps option has been selected, then filter snps identified with nucmer using utility script.
