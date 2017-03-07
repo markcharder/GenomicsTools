@@ -44,7 +44,7 @@ while (my $line = <$fh>) {
 	$line		=~ s/^\s+//g;
 	my @fields	= split /\s+/, $line;
 	my ($pos, $chr, $ref, $alt) = ($fields[0], $fields[13], $fields[1], $fields[2]);
-	my @chrpos 	= ($chr, $pos, ".", $ref, $alt, ".", ".", "ORIGIN=denovo\tGT\t1");
+	my @chrpos      = ($chr, $pos, ".", $ref, $alt, ".", ".", "ORIGIN=denovo\tGT:AD:DP:GQ:PL\t1/1:0,100:100:35:100,100,0");
 	my $chrpos 	= \@chrpos;
 	if ($ref ne "\."){
 		push @AoA, $chrpos;
