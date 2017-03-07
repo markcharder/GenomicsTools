@@ -189,13 +189,12 @@ if ($GVCFs) {
 # assemblies provided. The alt assembly should correspond to bam reads provided. Alternatively it can use
 # an already created snp file.
 if ($nucmer){
-	my $present;
-	if (! $snpfile) {
-		my ($snpfile, $nucsnps)	= PanGenome::CallVariants::callWithNucmer($prefix, $reference, $alt);
-		$present		= $nucsnps;
-	}
-	PanGenome::General::getFastaSeqs($alt, $present, "inverse", $prefix);
-	PanGenome::General::verboseMessage("\nCalled variants with nucmer at $time.\n", $verbose);
+        my $nucsnps;
+        if (! $snpfile) {
+                ($snpfile, $nucsnps)    = PanGenome::CallVariants::callWithNucmer($prefix, $reference, $alt);
+        }
+        PanGenome::General::getFastaSeqs($alt, $nucsnps, "inverse", $prefix);
+        PanGenome::General::verboseMessage("\nCalled variants with nucmer at $time.\n", $verbose);
   }
 
 # If the filter-snps option has been selected, then filter snps identified with nucmer using utility script.

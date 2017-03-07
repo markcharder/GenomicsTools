@@ -3,18 +3,19 @@ use strict;
 use warnings;
 use File::Basename;
 
-sub exitStatus {
+# Subroutines for mapping reads and formatting bam files. Uses Stampy and bwa.
 
+sub exitStatus {
+	# Die with error message on failed exit status.
 	my $message	= shift @_;
 	my $exit	= shift @_;
-
 	if ($exit != 0){
 		die ($message);
 	}
 }
 
 sub filterMultiMap {
-
+	# Filters out reads from a bam file that have a mapping quality less than 30.
 	my $prefix = shift @_;
 	my $bam = shift @_;
 
@@ -24,7 +25,7 @@ sub filterMultiMap {
 }
 
 sub alignBwa {
-
+	# Aligns reads with bwa.
 	my $u_out;
 	my $p_out;
 	my $prefix = shift @_;
@@ -85,6 +86,7 @@ sub alignBwa {
 
 
 sub samToBam {
+	# Converts sam files to bam files.
 	my $prefix = shift @_;
 	my $referenceGenome = shift @_;
 	my $threads = shift @_;
@@ -101,7 +103,7 @@ sub samToBam {
 
 
 sub mergeBams {
-
+	# Merges bam files.
 	my $prefix = shift @_;
 	my @bams =  @_;
 	my $baseName = basename($bams[0]);
@@ -113,7 +115,7 @@ sub mergeBams {
 
 
 sub sortBam {
-
+	# Sorts bam files.
 	my $prefix = shift @_;
 	my $bam = shift @_;
 	my $fileBase = basename($bam);
@@ -126,7 +128,7 @@ sub sortBam {
 
 
 sub alignStampy {
-
+	# Aligns reads based on bwa mappings using Stampy.
 	my $prefix = shift @_;
 	my $referenceGenome = shift @_;
 	my $threads = shift @_;
@@ -143,7 +145,8 @@ sub alignStampy {
 
 
 sub fixBam {
-
+	# Fixes badly formatted bam files in accordance with GATK recommendations:
+	# http://gatkforums.broadinstitute.org/gatk/discussion/2909/how-to-fix-a-badly-formatted-bam
 	my $prefixo = shift @_;
 	my $PICARDPATH = shift @_;
 	my $reference = shift @_;

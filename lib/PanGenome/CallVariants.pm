@@ -5,6 +5,7 @@ use File::Basename;
 
 # Subroutines that act as wrappers for various software used in variant calling. Includes methods for calling SNPs with
 # GATK and nucmer. Follows GATK best practices for filtering vcf files.
+
 sub exitStatus {
 	# Print message if failed exit status.
 	my $exit	= shift @_;
