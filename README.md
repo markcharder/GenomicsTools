@@ -1,9 +1,9 @@
 Perl package used for 'pangenome' (if you like that word) assembly and analysis.
 
-	-	Scripts and modules are generally wrappers for other softwares.
-	-	Paths to these softwares can either be specified in config.txt or added to $PATH.
-	-	GATK and Picard paths must be specified in the config file.
-	-	In order to use CodingQuarry, the QUARRY_PATH variable must also be set in config.txt.
+-	Scripts and modules are generally wrappers for other softwares.
+-	Paths to these softwares can either be specified in config.txt or added to $PATH.
+-	GATK and Picard paths must be specified in the config file.
+-	In order to use CodingQuarry, the QUARRY_PATH variable must also be set in config.txt.
 
 Scripts:
 
