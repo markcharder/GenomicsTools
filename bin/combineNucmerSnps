@@ -74,7 +74,9 @@ while (my $line = <$fh>) {
 		my @chrpos	= ($chr, $pos, $id, $ref, $alt);
 		push @chrpos, @rest;
 		my $chrpos	= \@chrpos;
-		push @AoA2, $chrpos;
+		if ($ref ne "\."){
+			push @AoA2, $chrpos;
+		}
 	}
 }
 close $fh;
