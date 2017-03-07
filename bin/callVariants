@@ -148,7 +148,7 @@ if (!$reference) {
 	die ("\n$usageShort\n");
 }
 
-if ($filterSNPs and !$depth){
+if ($filterSNPs and ($depth eq "")){
         die ("\nMust specify depth if filtering SNPs.\n\n");
 }
 
