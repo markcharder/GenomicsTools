@@ -1,0 +1,126 @@
+#!/usr/bin/env perl
+
+# This script incorporates various software packages into an easy to use pipeline for assembling illumina short
+# reads. It can also take a bam file and assemble reads that did not map to a reference.
+
+BEGIN { 
+	my $PERLPATH;
+	open my $fh, '<', 'config.txt';
+	while (my $line = <$fh>){
+		if ($line =~ /PERLPATH/){
+			chomp $line;
+			my @fields	= split "=", $line;
+			$PERLPATH	= $fields[1];
+		}
+	}
+	close $fh;
+	if (!$PERLPATH) {
+		die ("\nPlease set path to perl scripts in config.txt\n");
+	}
+	push @INC, $PERLPATH;
+}
+
+
+use strict;
+use warnings;
+use File::Basename;
+use Getopt::Long;
+use PanGenome::Assembly;
+use PanGenome::General;
+
+my(	$reads, 
+	$threads, 
+	$verbose,
+	$help,
+	$bam,
+	$mitochondrial,
+	$prefix) = ("", 1, "", "", "", "", "run_$$");
+
+my $time = localtime();
+
+GetOptions('reads|r=s'		=> \$reads,
+	   'threads|t:s'	=> \$threads,
+	   'verbose|v'		=> \$verbose,
+	   'bam|b:s'		=> \$bam,
+	   'help|h'		=> \$help,
+	   'mitochondrial|m:s'	=> \$mitochondrial,
+	   'prefix|p:s'		=> \$prefix);
+
+my $usageShort 	= <<USAGESHORT;
+
+	assembly
+	********
+
+        $0 --reads <reads fastq> / --bam <bam file>
+
+	[--threads <number of threads> 
+	 --mitochondrial <mitochondrial scaffolds> 
+	 --prefix <output prefix>
+	 --verbose 
+	 --help]
+
+
+USAGESHORT
+
+my $usageLong	= <<USAGELONG;
+
+	assembly
+	********
+
+        $0 --reads <reads fastq> / --bam <bam file> 
+
+	[--threads <number of threads> 
+	 --mitochondrial <mitochondrial scaffolds> 
+	 --prefix <output prefix>
+	 --verbose 
+	 --help]
+
+
+        Required (one of either):
+        --reads/-r <reads fastq>        -       Reads to be assembled. R1,R2,Unmapped. Or R1,R2.
+	--bam/-b	-	Bam file of reads mapped to reference.
+
+        Optional:
+        --threads/-t    -       Threads to use for software packages called.
+        --verbose/-v    -       Print messages to stdout during run time.
+        --help/-h       -       Print this message.
+	--mitochondrial/-m <mitochondrial scaffolds>	-	Mitochondrial scaffolds fasta for filtering.
+	--prefix/-p <prefix>	-	Prefix for outputs.
+
+USAGELONG
+
+if ($help) {
+	die ("\n$usageLong\n");
+}
+
+if ((!$reads) and (!$bam)){
+	die ("\n$usageShort\n");
+}
+
+# Parse options and create output directory.
+PanGenome::General::outputDir($prefix);
+PanGenome::General::parseConfig();
+my @readsFiles	= PanGenome::General::parseOptions($reads);
+
+# Assemble all reads.
+if ($reads) {
+	my $denovo	= PanGenome::Assembly::assembleA5($prefix, @readsFiles);
+	PanGenome::General::verboseMessage("Assembled reads de novo at $time\n", $verbose);
+  }
+
+# Assemble additional reads if provided.
+my @additional;
+
+if ($bam) {
+	@additional = PanGenome::Assembly::getAdditionalReads($prefix, $bam);
+	PanGenome::General::verboseMessage("Retrieved non-mapping reads at $time\n", $verbose);
+	my $denovoAdditional = PanGenome::Assembly::assembleA5($prefix, @additional);
+	PanGenome::General::verboseMessage("Assembled additional reads de novo at $time\n", $verbose);
+	if ($mitochondrial) {
+	my $list = PanGenome::Assembly::filterMitochondrial($prefix, $mitochondrial, $denovoAdditional);
+	PanGenome::General::getFastaSeqs($list, $denovoAdditional, "inverse", "$prefix/$prefix.filt");
+	}
+}
+
+# Print verbose end message if necessary.
+PanGenome::General::verboseMessage("\nScript ended at $time\n", $verbose);

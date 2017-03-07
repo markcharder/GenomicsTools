@@ -1,0 +1,160 @@
+#!/usr/bin/env perl
+
+# This script uses repeat masker, repeat modeler, coding quarry and maker to annotate
+# de novo genome assemblies.
+
+BEGIN {
+	my $PERLPATH;
+	open my $fh, '<', 'config.txt';
+	while (my $line = <$fh>){
+		if ($line =~ /PERLPATH/){
+			chomp $line;
+			my @fields	= split "=", $line;
+			$PERLPATH	= $fields[1];
+		}
+	}
+ 	close $fh;
+	if (!$PERLPATH) {
+		die ("\nPlease set path to perl scripts in config.txt\n");
+	}
+	push @INC, $PERLPATH;
+}
+
+use strict;
+use warnings;
+use File::Basename;
+use Getopt::Long;
+use Cwd;
+use PanGenome::Annotation;
+use PanGenome::General;
+Getopt::Long::Configure(qw{no_auto_abbrev no_ignore_case_always});
+
+my $usageShort = <<USAGESHORT;
+
+	annotation
+	**********
+
+	$0 --type <cq/rm/maker/all> --contigs <contigs>
+
+	[--cqgff < coding quarry gff>
+	--rmout repeat masker gff>
+	--species <species> 
+	--prot <protein evidence>
+	--threads <threads> 
+	--prefix <out prefix>
+	--verbose 
+	--help]
+
+
+
+USAGESHORT
+
+my $usageLong = <<USAGELONG;
+
+	annotation
+	**********
+
+	$0 --type <cq/rm/maker/all> --contigs <contigs> 
+
+	[--cqgff <coding quarry gff> 
+	--rmout <repeat masker gff> 
+	--species <species> 
+	--prot <protein evidence>
+	--threads <threads>
+	--prefix <out prefix>
+	--verbose 
+	--help]
+
+	Required (one of either):
+	--type/-t	-	cq	=	CodingQuarry annotation.
+			-	rm	=	Repeat masking with Repeat Modeler and Repeat Masker.
+			-	maker	=	Maker annotation using all evidence types.
+			-	all	=	Do all of above.
+	--contigs/-c	-	Contigs to be annotated.
+
+	Optional:
+	--species/-s	-	Species to train Coding Quarry on. Must be set if --type cq/all is set.
+	--prot/-p	-	High quality protein sequences to align to genome as evidence. Must be set of --type maker/all is set.
+	--threads/-d	-	Threads for each program.
+	--prefix/pr	-	Prefix for output files.
+	--cqgff/-q	-	CodingQuarry PredictedPass.gff to supply to maker.
+	--rmout/-r	-	RepeatMasker output to supply to maker.
+	--verbose/-v	-	Prints progress messages to stdout.
+	--help/-h	-	Prints this message.
+
+
+USAGELONG
+
+# Parse command line options.
+my(	$prefix,
+	$type, 
+	$species,
+	$threads,
+	$contigs,
+	$verbose,
+	$prot,
+	$help,
+	$rmout,
+	$cqgff)	= ("run_$$", "", "", 1, "", "", "", "", "", "");
+
+GetOptions('prefix|pr:s'	=> \$prefix,
+	   'species|s:s'	=> \$species, 
+	   'threads|d:s'	=> \$threads, 
+	   'type|t:s'		=> \$type, 
+	   'contigs|c=s'	=> \$contigs, 
+	   'verbose|v:s'	=> \$verbose, 
+	   'prot|p:s'		=> \$prot, 
+	   'help|h'		=> \$help, 
+	   'rmout|r:s'		=> \$rmout, 
+	   'cqgff|q:s'		=> \$cqgff);
+
+# If help or options not set, die with usage message.
+if ($help){
+	die("\n$usageLong\n");
+}
+
+if ((!$type) or (!$contigs)){
+	die("\n$usageShort\n");
+}
+
+if (($type =~ /cq|all/) and (!$species)){
+	die("\n$usageLong\n");
+}
+
+if (($type =~ /maker|all/) and (!$prot)){
+	die("\n$usageLong\n");
+}
+
+my $time = localtime();
+
+# Get paths for the various softare binaries.
+my ($GATKPATH, $PICARDPATH, $REPEATMASKERPATH, $EXONERATEPATH) = PanGenome::General::parseConfig();
+my $rmoutput;
+
+# Create output directory and print verbose start message if necessary.
+PanGenome::General::outputDir($prefix);
+PanGenome::General::verboseMessage("\nScript started at $time.\n", $verbose);
+
+# Run CodingQuarry if necessary.
+if ($type =~ /cq|all/){
+	$cqgff = PanGenome::Annotation::annotateCodingQuarry($species, $threads, $contigs, $prefix);
+	PanGenome::General::verboseMessage("\nCoding Quarry completed successfully at $time.\n", $verbose);
+}
+
+# Run RepeatMasker if necessary.
+if ($type =~ /rm|all/){
+	$rmout = PanGenome::Annotation::annotateRepeats($contigs, $threads, $REPEATMASKERPATH, $prefix);
+	PanGenome::General::verboseMessage("\nRepeat Masking completed successfully at $time.\n", $verbose);
+}
+
+# Run Maker if necessary. Maker can only be run if provided with results from other softwares, either
+# by the user or after running in this instance.
+if ($type =~ /maker|all/) {
+	my $reformatted = PanGenome::Annotation::reformatRepeatMasker($REPEATMASKERPATH, $rmout, $prefix);
+	system("codingQuarryToGff3 $cqgff > $prefix/$prefix.$$.cq.reformatted.gff 2>> $prefix/Maker.$$.logfile.txt");
+	my $dir = getcwd();
+	my @configFiles = PanGenome::Annotation::createMakerConfigs($contigs, $EXONERATEPATH, $REPEATMASKERPATH, $prot, "$dir/$reformatted", "$dir/$prefix/$prefix.$$.cq.reformatted.gff", $prefix);
+	PanGenome::General::verboseMessage("\nFinished making configuration files for Maker at $time.\n", $verbose);
+	my $makerout = PanGenome::Annotation::makerAnnotate($prefix, $contigs, "$dir/$configFiles[0]", "$dir/$configFiles[1]", "$dir/$configFiles[2]", $prefix);
+	PanGenome::General::verboseMessage("\nFinished running Maker at $time.\n", $verbose);
+}

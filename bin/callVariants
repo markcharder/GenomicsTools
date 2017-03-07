@@ -1,0 +1,220 @@
+#!/usr/bin/env perl
+
+# This script is a wrapper for GATK and can be used for calling variants and genotyping multiple gvcfs according
+# to GATK best practices.
+
+BEGIN {
+	my $PERLPATH;
+	open my $fh, '<', 'config.txt';
+	while (my $line = <$fh>){
+		if ($line =~ /PERLPATH/){
+			chomp $line;
+			my @fields	= split "=", $line;
+			$PERLPATH	= $fields[1];
+		}
+	}
+	close $fh;
+	if (!$PERLPATH) {
+		die ("\nPlease set path to perl scripts in config.txt\n");
+	}
+	push @INC, $PERLPATH;
+}
+
+use strict;
+use warnings;
+use File::Basename;
+use PanGenome::CallVariants;
+use PanGenome::General;
+use Getopt::Long;
+
+# Define global variables.
+my (	$depth,
+	$gcov,
+	$filterSNPs,
+	$bam,
+	$GVCFs,
+	$threads,
+	$verbose,
+	$help,
+	$reference,
+	$alt,
+	$nucmer,
+	$combine,
+	$prefix,
+	$snpfile,
+	$vcf)	= ("", "", "", "", "", 1, "", "", "", "", "", "", "run_$$", "", "");
+
+my $time	= localtime();
+
+# Parse command line options.
+GetOptions('vcf|vc:s'		=> \$vcf,
+	   'depth|dp:i'		=> \$depth, 
+	   'genomecov|gc:s'	=> \$gcov, 
+	   'filter-snps|fs'	=> \$filterSNPs, 
+	   'reference=s'	=> \$reference, 
+	   'bam|b:s'		=> \$bam, 
+	   'threads|t:s'	=> \$threads, 
+	   'verbose|v'		=> \$verbose, 
+	   'help|h'		=> \$help, 
+	   'gvcfs|g:s'		=> \$GVCFs, 
+	   'denovo|de:s'	=> \$alt, 
+	   'nucmer|nu'		=> \$nucmer, 
+	   'combine|c'		=> \$combine, 
+	   'prefix|p:s'		=> \$prefix,
+	   'snp-file|sf:s'	=> \$snpfile);
+
+my $usageShort	= <<USAGESHORT;
+
+	callVariants
+	************
+
+        $0 --reference <reference genome> --gvcfs <GVCFs> / --bam <bam> 
+
+	[--threads <number of threads> 
+	--verbose 
+	--help 
+	--nucmer 
+	--combine 
+	--vcf <vcf> 
+	--denovo <de novo alt assembly>
+	--filter-snps
+	--depth
+	--genomecov <genome coverage>
+	--prefix <prefix>
+	--snp-file <snp file>
+	--vcf <vcf file>]
+
+
+USAGESHORT
+
+my $usageLong	= <<USAGELONG;
+
+	callVariants
+	************
+
+        $0 --reference <reference genome> --gvcfs <GVCFs> / --bam <bam> 
+
+	[--threads <number of threads> 
+	--verbose 
+	--help 
+	--nucmer 
+	--combine 
+	--vcf <vcf> 
+	--denovo <de novo alt assembly>
+	--filter-snps
+	--depth <depth>
+	--genomecov <genome coverage>
+	--prefix <prefix>
+	--snp-file <snp file>
+	--vcf <vcf file>]
+
+
+        Required:
+	--reference <reference genome>		-	Reference genome for genotyping.
+	One of either:
+        --bam/-b <bam>				-	Bam file to be genotyped with GATK.
+	--gvcfs/-g <GVCFs>			-	A comma separated list of gvcf files for GATK.
+
+        Optional:
+        --threads/-t    			-       Threads to use for software packages called.
+        --verbose/-v				-       Print messages to stdout during run time.
+        --help/-h				-       Print this message.
+	--nucmer/-nu				-	Call variants from de novo assembly with nucmer.
+	--combine/-co				-	Combine nucmer variants with vcf files produced by GATK.
+	--vcf/-va				-	Vcf file for combine.
+	--denovo/-de				-	De novo assembly of alternate isolate to reference to use with nucmer.
+	--filter-snps/-fs			-	Filter snps from nucmer based on depth of coverage.
+	--depth/-dp				-	Depth for filtering snps.
+	--genomecov/-gc <genome coverage>	-	Output from bedtools showing coverage at each position from bam.
+	--prefix/-p <prefix>			-	Prefix for output files.
+	--snp-file/sf <snp file>		-	File containing snps from nucmer output.
+	--vcf/-vc				-	File for combining nucmer snps with.
+
+
+USAGELONG
+
+# If help  of mandatory options aren't set, die with usage message.
+if ($help) {
+	die ("\n$usageLong\n");
+}
+
+if ((!$GVCFs) and (!$bam)) {
+	unless ($nucmer or $combine) {
+		die ("\n$usageShort\n");
+	}
+}
+
+if (!$reference) {
+	die ("\n$usageShort\n");
+}
+
+# Print verbose start message if necessary and create output directory, if necessary.
+PanGenome::General::verboseMessage("\nScript began at $time\n", $verbose);
+PanGenome::General::outputDir($prefix);
+
+# Get paths for GATK and PICARDTOOLS.
+my ($GATKPATH, $PICARDPATH) = PanGenome::General::parseConfig();
+
+# If only bam is present and --filter-snps from nucmer has not been specified then use the PanGenome::CallVariants module to call variants and hard filter resulting vcf.
+if (($bam) and !($vcf)) {
+	my @intermediates	= PanGenome::CallVariants::callVariants($prefix, $GATKPATH, $reference, $bam);
+	my $recalvcf		= pop @intermediates;
+	pop @intermediates;
+	PanGenome::General::verboseMessage("\nCalled variants from supplied bam at $time.\n", $verbose);
+	my @hfIntermediates	= PanGenome::CallVariants::hardFilterVCF($prefix, $reference, $GATKPATH, $recalvcf);
+	my $hfvcf		= pop @hfIntermediates;
+
+	# If a vcf has not been provided for combinging with nucmer, then add nucmer to the vcf that has just been created.
+	if (!$vcf) {
+		$vcf = $hfvcf;
+	}
+	
+	# Get rid of intermediate bam filtering files.
+	PanGenome::General::cleanUp(@intermediates, @hfIntermediates);
+	PanGenome::General::verboseMessage("\nFiltered variants at $time.\n", $verbose);
+}
+
+# If a list of GVCF files has been provided, then merge and genotype them using GATK.
+if ($GVCFs) {
+	my @GVCFs = split /\,/, $GVCFs;
+ 	my $genotyped = PanGenome::CallVariants::genotypeGVCFs($prefix, $GATKPATH, $reference, @GVCFs);
+	PanGenome::General::verboseMessage("\nGenotyped GVCFs at $time.\n", $verbose);
+	my @intermediates = PanGenome::CallVariants::hardFilterVCF($prefix, $reference, $GATKPATH, $genotyped);
+	pop @intermediates;
+	PanGenome::General::cleanUp(@intermediates);
+	PanGenome::General::verboseMessage("\nFiltered variants at $time.\n", $verbose);
+}
+
+# If nucmer has been selected, then generate a snp file using nucmer from an alignment between ref and alt
+# assemblies provided. The alt assembly should correspond to bam reads provided. Alternatively it can use
+# an already created snp file.
+if ($nucmer){
+	my $present;
+	if (! $snpfile) {
+		my ($snpfile, $nucsnps)	= PanGenome::CallVariants::callWithNucmer($prefix, $reference, $alt);
+		$present		= $nucsnps;
+	}
+	PanGenome::General::getFastaSeqs($alt, $present, "inverse", $prefix);
+	PanGenome::General::verboseMessage("\nCalled variants with nucmer at $time.\n", $verbose);
+  }
+
+# If the filter-snps option has been selected, then filter snps identified with nucmer using utility script.
+# This will remove snps for which there is not a user-specified threshold of coverage based on the bam file
+# also supplied to this script.
+if ($filterSNPs) {
+	# If genome coverage file has not been specified, then use bedtools to generate a genome coverage file.
+	if (!$gcov){
+		$gcov	= PanGenome::CallVariants::coverageBedtools($prefix, $bam, $reference);
+	}
+	system("filterNucmerSnps --snps $snpfile --coverage $gcov --depth $depth > $prefix/$prefix.snps.filt 2>> $prefix/nucmer.$$.logfile.txt");
+	PanGenome::General::verboseMessage("\nFiltered snps in regions with $depth coverage at $time.\n", $verbose);
+}
+
+# If combining the nucmer snps and the gatk snps is required, then do so.
+if ($combine){
+	system("combineNucmerSnps --snps  $prefix/$prefix.snps.filt --vcf $vcf > $prefix/$prefix.$$.comb_nucmer.vcf 2>> $prefix/nucmer.$$.logfile.txt");
+	PanGenome::General::verboseMessage("\nCombined nucmer snps with GATK snps at $time.\n", $verbose)
+}
+
+# Print verbose end message if necessary.
+PanGenome::General::verboseMessage("\nScript ended at $time\n", $verbose);

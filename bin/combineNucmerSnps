@@ -1,0 +1,94 @@
+#!/usr/bin/env perl
+
+# Combines snps from a nucmer alignment produced using show-snps with a vcf from gatk.
+
+use strict;
+use warnings;
+use Getopt::Long;
+
+# Parse command line options.
+my ($snps, $vcf) = ("", "");
+GetOptions(	'snps=s'	=> \$snps,
+		'vcf=s'	=> \$vcf);
+
+my $usage = <<USAGE;
+
+	combineNucmerSnps
+	*****************
+
+	$0 --snps <snp file> --vcf <vcf file>
+
+	-	Takes output from nucmers show-snps utility and a vcf produced by GATK.
+	-	Combines the SNPs from both sources into a new vcf file.
+
+USAGE
+
+# If no options specified, then die with a usage message.
+if (!($snps or $vcf)) {
+	die ("\n$usage\n");
+}
+
+# Initialise an empty array and open the nucmer show-snps output file and read in lines. Create an array containing all information necessary for creating
+# track in a vcf file. I.e. chromosome, position, id, reference, alt... information, genotype, etc. Chromosome, position and
+# ref/alt are based on the snp file.
+# Add each of these arrays to an array of array references (that was initiated at the beginning).
+my @AoA;
+open my $fh, "<", $snps or die ("\nProblem with snps file.\n\n$usage\n");
+while (my $line = <$fh>) {
+	if ($line !~ /^\s+\d/){
+		next;
+	}
+	else {
+		chomp $line;
+	}
+	$line		=~ s/^\s+//g;
+	my @fields	= split /\s+/, $line;
+	my ($pos, $chr, $ref, $alt) = ($fields[0], $fields[13], $fields[1], $fields[2]);
+	my @chrpos 	= ($chr, $pos, ".", $ref, $alt, ".", ".", "ORIGIN=denovo\tGT\t1");
+	my $chrpos 	= \@chrpos;
+	if ($ref ne "\."){
+		push @AoA, $chrpos;
+	}
+}
+close $fh;
+
+# Initialise two emty arrays. Read in the vcf file line by line. Populate one of the arrays with all the headers.
+# Then split each vcf track into an array. Populate the other array, as an array of arrays, with each of these
+# vcf track arrays.
+my @headers;
+my @AoA2;
+open $fh, "<", $vcf or die ("\nProblem with vcf file.\n\n$usage\n");
+while (my $line = <$fh>) {
+	chomp $line;
+
+	if ($line =~ /^#/){
+		push @headers, $line;
+		next;
+	}
+	else {
+		my @fields	= split /\s+/, $line;
+		my ($chr, $pos, $id, $ref, $alt) = @fields[0..4];
+		my $end	= $#fields;
+		my @rest	= @fields[4..$end];
+		my @chrpos	= ($chr, $pos, $id, $ref, $alt);
+		push @chrpos, @rest;
+		my $chrpos	= \@chrpos;
+		push @AoA2, $chrpos;
+	}
+}
+close $fh;
+
+# Add the first array of arrays (from the snps file) to the second array of arrays (from the vcf).
+# Then sort the combined array based on chromosome id then position.
+push @AoA, @AoA2;
+my @sortedAoA = sort {$a->[0] cmp $b->[0] or $a->[1] <=> $b->[1]} @AoA;
+
+# Then print all headers, and the new array to stdout. This is the combined vcf.
+print join ("\n", @headers);
+foreach my $val (@sortedAoA) {
+  print join ("\t", @$val) . "\n";
+}
+
+
+
+

@@ -1,0 +1,70 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use Getopt::Long;
+
+# Takes a snps file from nucmer show-snps, a coverage file from bedtools gcov and a user specified depth.
+# Filters snps from the nucmer show-snps file that have already been sufficiently covered with RNASeq data.
+
+# Parse options from command line.
+my ($snps, $coverage, $depth)	= ("", "", "");
+GetOptions(	'snps=s' 	=> \$snps, 
+		'coverage=s'	=> \$coverage,
+		'depth=i'	=> \$depth);
+
+my $usage = <<USAGE;
+
+	filterNucmerSnps
+	****************
+
+	$0 --snps <snps file> --coverage <bedtools genome coverage file> --depth <depth to filter on>
+
+	-	Takes the file output from nucmer show-snps, a coverage file output from bedtools
+		and a user-defined coverage threshold.
+	-	Will output only those snps that are not sufficiently covered based on the user-defined
+		threshold.
+	-	This is for collecting SNPs from a denovo assembly that cannot confidently be called
+		with read mappings.
+
+USAGE
+
+# If any of the options (which are all mandatory) are not specified, then die and print a usage message.
+if (($snps eq "") or ($coverage eq "") or ($depth eq "")) {
+	die ("\n$usage\n");
+}
+
+# Declare an empty hash, then open the coverage file. Populate the hash with keys that consist of concatenated
+# chromosome ids and positions in the coverage file. Their corresponding values are the depths at those positions.
+my %hash;
+open my $fh, "<", $coverage or die ("\n$usage\n");
+while (my $line = <$fh>) {
+	chomp $line;
+	my ($chr, $pos, $cov)	= split /\s+/, $line;
+	my $chrpos		= join (",", ($chr, $pos));
+	$hash{$chrpos}		= $cov;
+}
+close $fh;
+
+# Open the nucmer show-snps file. Compare each line of the file against the hash. If that chromosome and position
+# is not covered above the user-defined depth threshold, then print to stdout.
+open $fh, "<", $snps or die ("\n$usage\n");
+while (my $line = <$fh>){
+	if ($line !~ /^\s+\d/){
+		print $line;
+		next;
+	}
+	else {
+		my $new		= $line;
+		$new		=~ s/^\s+//g;
+		my @fields	= split /\s+/, $new;
+		my $chrpos	= join (",", $fields[13],$fields[0]);
+		if (defined($hash{$chrpos})){
+			if ($hash{$chrpos} <= $depth){
+				print $line;
+			}
+		}
+	}
+}
+close $fh;
+
