@@ -1,14 +1,15 @@
-Perl package used for 'pan genome' (if you like that word) assembly and analysis.
+# analysis
 
-Contents:
+## Perl package used for 'pan genome' (if you like that word) assembly and analysis.
+
+### Contents:
 -	Requirements
 -	Installation
 -	Scripts
 -	Notes on running on slurm cluster
 
-Requirements:
+#### Requirements:
 
-	Software			Tested version
 -	Maker2				
 -	Coding Quarry			v2.0
 -	Repeat Modeler			
@@ -31,7 +32,9 @@ Requirements:
 -	Repeat Scout
 -	Recon
 
-Installation:
+Versions listed have been tested but are not necessarily the only versions the package will work with.
+
+#### Installation:
 
 Scripts and modules are generally wrappers for other softwares. 
 Paths to these softwares can either be specified in config.txt or added to $PATH.
@@ -43,10 +46,9 @@ does not come with an automatic install script.
 Other than this, the package should run straight out of the box.
 
 	
-Scripts:
+#### Scripts:
 
-assembly
---------
+##### assembly
 
 This script assembles short reads de novo using the A5 pipeline for automated parameter optimisation 
 (http://bioinformatics.oxfordjournals.org/content/31/4/587.full.pdf).
@@ -74,8 +76,7 @@ Software used in assembly:
 	Bam2fastq	1.1.0		https://github.com/jts/bam2fastq
 	Nucmer		3.1		http://mummer.sourceforge.net/
 
-annotation
-----------
+###### annotation
 
 This script annotates assembled sequences using Coding Quarry, Repeat Masker and Repeat Modeler, and Maker2.
 
@@ -95,8 +96,7 @@ Software used in annotation:
 	Repeat Masker	4.0.6		http://www.repeatmasker.org/
 	Maker2		2.31.8		http://www.yandell-lab.org/software/maker.html
 
-mapping
--------
+##### mapping
 
 This script maps short reads to a reference sequence with the stampy software. It subsequently fixes the bam files using picard tools.
 
@@ -116,8 +116,7 @@ Software used in mapping:
 	Picardtools	2.0.1		https://broadinstitute.github.io/picard/
 	Stampy		1.0.29		http://www.well.ox.ac.uk/stampy
 
-callVariants
-------------
+##### callVariants
 
 This script uses supplied bam files to call variants using gatk. It follows gatk best practices and will hard filter vcf files.
 
@@ -143,8 +142,7 @@ Software used in callVariants:
 	Bedtools	v2.17.0		http://bedtools.readthedocs.io/en/latest/content/installation.html
 	Nucmer		3.1		http://mummer.sourceforge.net/
 
-Notes on running on a slurm cluster
------------------------------------
+#### Notes on running on a slurm cluster
 
 In its original implementation, this package was run on a slurm cluster using a reference genome and illumina reads for alternate isolates.
 The whole process, encompassing all scripts, was run from beginning to end in parallel using mpibash with 24 internal threads for each instance.
