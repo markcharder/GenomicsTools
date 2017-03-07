@@ -1,10 +1,48 @@
-Perl package used for 'pangenome' (if you like that word) assembly and analysis.
+Perl package used for 'pan genome' (if you like that word) assembly and analysis.
 
--	Scripts and modules are generally wrappers for other softwares.
--	Paths to these softwares can either be specified in config.txt or added to $PATH.
--	GATK and Picard paths must be specified in the config file.
--	In order to use CodingQuarry, the QUARRY_PATH variable must also be set in config.txt.
+Contents:
+-	Requirements
+-	Installation
+-	Scripts
+-	Notes on running on slurm cluster
 
+Requirements:
+
+	Software			Tested version
+-	Maker2				
+-	Coding Quarry			v2.0
+-	Repeat Modeler			
+-	Repeat Masker
+-	Tandem Repeat Finder
+-	Samtools			v0.1.19
+-	Genome Analysis Toolkit		v3.7
+-	Picard Tools			v2.9.0
+-	Bed Tools			v2.25.0
+-	Bioperl
+-	Mummer
+-	A5 (assembly pipeline)
+-	Stampy
+-	BWA
+-	Exonerate
+-	Repeat Scout
+-	Bam2Fastq
+-	NSEG
+-	RMBLAST
+-	Repeat Scout
+-	Recon
+
+Installation:
+
+Scripts and modules are generally wrappers for other softwares. 
+Paths to these softwares can either be specified in config.txt or added to $PATH.
+GATK and Picard paths must be specified in the config file, bin/config.txt. 
+In order to use CodingQuarry, the QUARRY_PATH variable must also be set in bin/config.txt.
+
+Not all of these software packages are easy to install or configure. Unfortunately this package
+does not come with an automatic install script.
+Other than this, the package should run straight out of the box.
+
+	
 Scripts:
 
 assembly
@@ -105,7 +143,13 @@ Software used in callVariants:
 	Bedtools	v2.17.0		http://bedtools.readthedocs.io/en/latest/content/installation.html
 	Nucmer		3.1		http://mummer.sourceforge.net/
 
-Bash scripts
-------------
+Notes on running on a slurm cluster
+-----------------------------------
 
-The Bash scripts in the ./bash directory were used for running the pipeline across an arbitrary number of datasets on a supercomputer using a slurm job schedular with mpibash.
+In its original implementation, this package was run on a slurm cluster using a reference genome and illumina reads for alternate isolates.
+The whole process, encompassing all scripts, was run from beginning to end in parallel using mpibash with 24 internal threads for each instance.
+
+The scripts used to accomplish this are in the bash directory.
+
+To run the whole process takes some time - up to a week for a small genome of only 40 Mb. As there is a walltime limit on the supercomputer that
+was used in the original implementation, the process was split across several jobs.
