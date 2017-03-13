@@ -1,97 +1,106 @@
 #!/usr/bin/env perl
 
-# Combines snps from a nucmer alignment produced using show-snps with a vcf from gatk.
-
 use strict;
 use warnings;
 use Getopt::Long;
+my ($snps, $vcf, $out, $verbose)	= ("", "", "combined.vcf", "");
 
-# Parse command line options.
-my ($snps, $vcf) = ("", "");
 GetOptions(	'snps=s'	=> \$snps,
-		'vcf=s'	=> \$vcf);
+		'vcf=s'		=> \$vcf,
+		'out:s'		=> \$out,
+		'verbose'	=> \$verbose	);
 
-my $usage = <<USAGE;
+my $usage	= <<USAGE;
 
+	
 	combineNucmerSnps
 	*****************
 
-	$0 --snps <snp file> --vcf <vcf file>
+	$0 --snps <nucmer show-snps file> --vcf <vcf file> --out <output file>
 
-	-	Takes output from nucmers show-snps utility and a vcf produced by GATK.
-	-	Combines the SNPs from both sources into a new vcf file.
+	-	Combines variants from nucmer's show-snps utility and a vcf.
+	-	Output defaults to 'combined.vcf'.
 
 USAGE
 
-# If no options specified, then die with a usage message.
-if (!($snps or $vcf)) {
-	die ("\n$usage\n");
+if (($snps eq "") or ($vcf eq "")){
+	die ("\n$usage\n\n");
 }
 
-# Initialise an empty array and open the nucmer show-snps output file and read in lines. Create an array containing all information necessary for creating
-# track in a vcf file. I.e. chromosome, position, id, reference, alt... information, genotype, etc. Chromosome, position and
-# ref/alt are based on the snp file.
-# Add each of these arrays to an array of array references (that was initiated at the beginning).
-my @AoA;
-open my $fh, "<", $snps or die ("\nProblem with snps file.\n\n$usage\n");
-while (my $line = <$fh>) {
-	if ($line !~ /^\s+\d/){
-		next;
-	}
-	else {
-		chomp $line;
-	}
-	$line		=~ s/^\s+//g;
-	my @fields	= split /\s+/, $line;
-	my ($pos, $chr, $ref, $alt) = ($fields[0], $fields[13], $fields[1], $fields[2]);
-	my @chrpos      = ($chr, $pos, ".", $ref, $alt, ".", ".", 
-	"AC=2;AF=1.00;AN=2;DP=100;ExcessHet=3.0;FS=0.000;MLEAC=2;MLEAF=1.00;MQ=35.00;QD=35;SOR=1.5;set=b\tGT:AD:DP:GQ:PL\t1/1:0,100:100:35:100,100,0");
-	my $chrpos 	= \@chrpos;
-	if ($ref ne "\."){
-		push @AoA, $chrpos;
-	}
-}
-close $fh;
-
-# Initialise two emty arrays. Read in the vcf file line by line. Populate one of the arrays with all the headers.
-# Then split each vcf track into an array. Populate the other array, as an array of arrays, with each of these
-# vcf track arrays.
-my @headers;
-my @AoA2;
-open $fh, "<", $vcf or die ("\nProblem with vcf file.\n\n$usage\n");
-while (my $line = <$fh>) {
+print "\nOutput is $out.\n\n" if $verbose;
+my (@snps, %hash, @headers, @vcf);
+open my $FH, $snps or die("\n$usage\n\n");
+while (my $line = <$FH>){
 	chomp $line;
-
-	if ($line =~ /^#/){
-		push @headers, $line;
-		next;
+	unless ($line !~ /\s+\d/){
+		my @fields = split(/\s+/, $line);
+		my ($rcon, undef, undef)	= split("", $fields[12]);
+		my ($acon, undef, undef)	= split("", $fields[13]);
+		$hash{"$fields[17]-$fields[1]"}	= "$rcon\t$acon" if not $hash{"$fields[17]-$fields[1]"};
+		@fields = ($fields[17], $fields[1], ".", $fields[2], $fields[3], ".", ".", "ORIGIN=denovo\tGT:AD:DP:GQ:PL\t1/1:0,1:1:100:100,100,0");
+		push @snps, \@fields;
 	}
-	else {
-		my @fields	= split /\s+/, $line;
-		my ($chr, $pos, $id, $ref, $alt) = @fields[0..4];
-		my $end	= $#fields;
-		my @rest	= @fields[5..$end];
-		my @chrpos	= ($chr, $pos, $id, $ref, $alt);
-		push @chrpos, @rest;
-		my $chrpos	= \@chrpos;
-		if ($ref ne "\."){
-			push @AoA2, $chrpos;
+}
+close $FH;
+
+open $FH, $vcf or die ("\n$usage\n\n");
+while (my $line = <$FH>){
+	chomp $line;
+	push @headers, $line if $line =~ /^#/;
+	next if $line =~ /^#/;
+	my @fields = (split("\t", $line));
+	push @vcf, \@fields;
+}
+close $FH;
+
+push @vcf, @snps;
+my @sorted	= sort{$a->[0] cmp $b->[0] or $a->[1] <=> $b->[1]} @vcf;
+
+my ($pname, $cpos, $ppos, $count, $palt, $rinstart)	= ("", "", "", 1, "", "");
+foreach my $val (@sorted){
+	my @array		= @$val;
+	my $chrpos		= "$array[0]-$array[1]";
+	my ($rcon, $acon)	= $hash{$chrpos} if $hash{$chrpos};
+	if ($array[3] eq "\."){
+		$hash{$chrpos}	= $hash{$chrpos} . $array[4];
+	}
+	if ($array[4] eq "\."){
+		if (($array[1] != ($ppos + 1))or($array[0] ne $pname)){
+			$rinstart	= $array[1];
+		}
+		$hash{"$array[0]-$rinstart"}	= $hash{"$array[0]-$rinstart"} . $array[3] if $hash{"$array[0]-$rinstart"};
+	}
+	$ppos	= $array[1];
+	$pname	= $array[0];
+}
+
+open $FH, ">", $out or die ("\n$usage\n\n");
+print $FH join ("\n", @headers) . "\n";
+$ppos	= "";
+foreach my $val (@sorted){
+	my @array	= @$val;
+	my $pos		= $array[1] - 1;
+	if ($array[3] eq "\."){
+		if ($array[1] ne "$ppos"){
+			my ($rcon, $acon)	= split("\t", $hash{"$array[0]-$array[1]"}) if $hash{"$array[0]-$array[1]"};
+			print $FH "$array[0]\t$pos\t.\t$rcon\t$acon\t" . join("\t", @array[5..$#array]) . "\n";
 		}
 	}
+	elsif ($array[4] eq "\."){
+		$cpos	= $ppos + 1;
+		if ($array[1] != "$cpos"){
+			if ($hash{"$array[0]-$array[1]"}){
+				my ($rcon, $acon)	= split("\t", $hash{"$array[0]-$array[1]"});
+				my @vals		= split("", $acon);
+				$acon			= shift @vals;
+				$rcon			= $rcon . join("", @vals);
+				print $FH "$array[0]\t$pos\t.\t$rcon\t$acon\t" . join("\t", @array[5..$#array]) . "\n";
+			}
+		}
+	}
+	else{
+		print $FH join("\t", @array) . "\n" unless $hash{"$array[0]-$array[1]"};
+	}
+	$ppos	= $array[1];
 }
-close $fh;
-
-# Add the first array of arrays (from the snps file) to the second array of arrays (from the vcf).
-# Then sort the combined array based on chromosome id then position.
-push @AoA, @AoA2;
-my @sortedAoA = sort {$a->[0] cmp $b->[0] or $a->[1] <=> $b->[1]} @AoA;
-
-# Then print all headers, and the new array to stdout. This is the combined vcf.
-print join ("\n", @headers) . "\n";
-foreach my $val (@sortedAoA) {
-	print join ("\t", @$val) . "\n";
-}
-
-
-
-
+close $FH;	

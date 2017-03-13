@@ -58,7 +58,7 @@ while (my $line = <$fh>){
 		my $new		= $line;
 		$new		=~ s/^\s+//g;
 		my @fields	= split /\s+/, $new;
-		my $chrpos	= join (",", $fields[13],$fields[0]);
+		my $chrpos	= join (",", $fields[16],$fields[0]);
 		if (defined($hash{$chrpos})){
 			if ($hash{$chrpos} <= $depth){
 				print $line;

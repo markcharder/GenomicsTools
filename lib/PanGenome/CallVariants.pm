@@ -135,7 +135,7 @@ sub callWithNucmer {
 	exitStatus($exit, "Problem running delta-filter.\n");
 	$exit		= system("grep \">\" $prefix/$prefix.filt.delta | awk \'\{print \$2\}\' | sort -V -u > $prefix/$prefix.present 2>> $prefix/nucmer.$$.logfile.txt");
 	exitStatus($exit, "Problem problem getting mapped contigs list.\n");
-	$exit		= system("show-snps -Clr $prefix/$prefix.filt.delta > $prefix/$prefix.snps 2>> $prefix/nucmer.$$.logfile.txt");
+	$exit		= system("show-snps -Clr -x 1 $prefix/$prefix.filt.delta > $prefix/$prefix.snps 2>> $prefix/nucmer.$$.logfile.txt");
 	exitStatus($exit, "Problem running show-snps.\n");
 	return("$prefix/$prefix.snps", "$prefix/$prefix.present"); 
 }
