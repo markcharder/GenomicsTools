@@ -1,4 +1,4 @@
-# analysis
+# PanGenomeConstruction
 
 ## Perl package used for 'pan genome' (if you like that word) assembly and analysis.
 
