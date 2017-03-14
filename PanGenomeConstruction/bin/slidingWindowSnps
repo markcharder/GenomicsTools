@@ -1,0 +1,130 @@
+#!/usr/bin/env perl
+
+$| = 1;
+use strict;
+use warnings;
+use Getopt::Long;
+
+my ($vcf, $window, $output, $increment, $verbose);
+
+# Utility script for creating a tab delimited file containing information on number of variants per sliding window.
+GetOptions(	"--vcf=s" 	=> \$vcf,
+		"--window:s"	=> \$window,
+		"--output:s"	=> \$output,
+		"--increment:s"	=> \$increment,
+		"--verbose"	=> \$verbose	);
+
+
+my $usage	= <<USAGE;
+
+
+	slidingWindowSnps
+	*****************
+
+	$0	--vcf <vcf> --window <window size> --increment <increment window by...> --output <output> --verbose
+
+	-	Will produce a tab delimited file contining number of variants per a particular sliding window size.
+	-	Careful with large genomes, if window size and increment are too small, will take a very long time.
+	-	Increment defaults to same as window size (end-to-end) and output defaults to 'out.txt'.
+
+USAGE
+
+die("\n$usage\n\n") if not $vcf;
+
+if (!$window){
+	$window		= 10000;
+	print "\nDefaulting to window size of $window\n\n" if $verbose;
+}
+
+if (!$increment){
+	$increment	= $window;
+	print "\nIncrement defaulting to window size, which is $window\n\n" if $verbose;
+}
+
+if (!$output){
+	$output		= "out.txt";
+	print "\nOutput defaulting to 'out.txt'\n\n" if $verbose;
+}
+
+open my $FH, $vcf or die ("\n$vcf not readable.\n$usage\n\n");
+my (%contiginfo, %hash);
+while (my $line	= <$FH>){
+	chomp $line;
+	if ($line =~ /^#/){
+		next unless $line =~ /^##contig/;
+	}
+	if ($line =~ /^##contig/){
+		my @contiginfo			= split(/=|,|\>/, $line);
+		my $contigwindows		= int(($contiginfo[4] - $window) / $increment);
+		print "$contiginfo[2] is $contiginfo[4] bp, which creates $contigwindows windows.\n" if $verbose;
+		$contiginfo{$contiginfo[2]}	= $contigwindows;
+		next;
+	}
+	else {
+		my @fields	= split(/\s+/, $line);
+		my $chrpos	= "$fields[0]-$fields[1]";
+		if (length(split("", $fields[3]) > 1)){
+			$hash{$chrpos}	= "del";
+		}
+		elsif (length(split("", $fields[4]) > 1)){
+			$hash{$chrpos}	= "in";
+		}
+		else {
+			$hash{$chrpos}	= "snp";
+		}
+	}
+}
+close $FH;
+
+my $last	= 0;
+my $pcomplete	= 0;
+my $count	= 0;
+my $totalsize	= 0;
+my $start	= 1;
+my $end		= 0;
+my $snpcount	= 0;
+my $incount	= 0;
+my $delcount 	= 0;
+my $number	= 0;
+
+foreach my $key (keys %contiginfo){
+	$totalsize 	+= $contiginfo{$key};
+}
+
+my @numbers	= ();
+open $FH, ">",  $output or die ("\nFatal, cannot open file $output for writing.\n\n");
+for my $key (keys %contiginfo){
+	for (my $i = 1; $i <= $contiginfo{$key}; $i++){
+		if ($i != 1){
+			$start	= $start + $increment;
+		}
+		$end	= $start + $window;
+		for my $ikey (keys %hash){
+			my ($chr, $pos) 	= split("-", $ikey);
+			if ($chr eq "$key"){
+				if (($pos > $start) and ($pos < $end)){
+					$snpcount++ if $hash{$ikey} eq "snp";
+					$incount++ if $hash{$ikey} eq "in";
+					$delcount++ if $hash{$ikey} eq "del";
+				}
+			}
+		}
+		print $FH "$key\t$i\t$start\t$end\t$snpcount\t$incount\t$delcount\n";
+		$pcomplete	= ($count / $totalsize) * 100;
+		if ($count == $last + 30){
+			my $pout	= int($pcomplete);
+			$last		= $count;
+			print " $pout % ";
+		}
+		if ($count == 0){
+			print "Progress:	[0 % ";
+		}
+		print "." if $verbose;
+		$count++;
+		if ($count == $totalsize){
+			print "]\tComplete.\n";
+		}
+		($snpcount, $incount, $delcount) 	= (0, 0, 0);
+	}
+}
+close $FH;

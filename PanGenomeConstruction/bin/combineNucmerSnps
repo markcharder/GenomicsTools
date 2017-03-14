@@ -1,0 +1,119 @@
+#!/usr/bin/env perl
+
+# Takes output from show-snps and 'filterNucmerSnps' and combines the variants with a vcf file of variants from read mapping.
+
+use strict;
+use warnings;
+use Getopt::Long;
+my ($snps, $vcf, $out, $verbose)	= ("", "", "combined.vcf", "");
+
+# Parse command line options.
+GetOptions(	'snps=s'	=> \$snps,
+		'vcf=s'		=> \$vcf,
+		'out:s'		=> \$out,
+		'verbose'	=> \$verbose	);
+
+my $usage	= <<USAGE;
+
+	
+	combineNucmerSnps
+	*****************
+
+	$0 --snps <nucmer show-snps file> --vcf <vcf file> --out <output file>
+
+	-	Combines variants from nucmer's show-snps utility and a vcf.
+	-	Output defaults to 'combined.vcf'.
+
+USAGE
+
+# Error message if no input.
+if (($snps eq "") or ($vcf eq "")){
+	die ("\n$usage\n\n");
+}
+
+print "\nOutput is $out.\n\n" if $verbose;
+
+# Open the nucmer snps file and gather information about all the variants; populate an array with this information.
+my (@snps, %hash, @headers, @vcf);
+open my $FH, $snps or die("\n$usage\n\n");
+while (my $line = <$FH>){
+	chomp $line;
+	unless ($line !~ /\s+\d/){
+		my @fields = split(/\s+/, $line);
+		my ($rcon, undef, undef)	= split("", $fields[12]);
+		my ($acon, undef, undef)	= split("", $fields[13]);
+		$hash{"$fields[17]-$fields[1]"}	= "$rcon\t$acon" if not $hash{"$fields[17]-$fields[1]"};
+		@fields = ($fields[17], $fields[1], ".", $fields[2], $fields[3], ".", ".", "ORIGIN=denovo\tGT:AD:DP:GQ:PL\t1/1:0,1:1:100:100,100,0");
+		push @snps, \@fields;
+	}
+}
+close $FH;
+
+# Open the vcf file and populate another array with information on variants. Also, create an array containing just the headers.
+open $FH, $vcf or die ("\n$usage\n\n");
+while (my $line = <$FH>){
+	chomp $line;
+	push @headers, $line if $line =~ /^#/;
+	next if $line =~ /^#/;
+	my @fields = (split("\t", $line));
+	push @vcf, \@fields;
+}
+close $FH;
+
+# Combine both the vcf and nucmer snps file arrays.
+push @vcf, @snps;
+my @sorted	= sort{$a->[0] cmp $b->[0] or $a->[1] <=> $b->[1]} @vcf;
+
+# Go through the array and for each nucmer-derived insertion or deletion, add to a hash table.
+my ($pname, $cpos, $ppos, $count, $palt, $rinstart)	= ("", "", "", 1, "", "");
+foreach my $val (@sorted){
+	my @array		= @$val;
+	my $chrpos		= "$array[0]-$array[1]";
+	my ($rcon, $acon)	= $hash{$chrpos} if $hash{$chrpos};
+	if ($array[3] eq "\."){
+		$hash{$chrpos}	= $hash{$chrpos} . $array[4];
+	}
+	if ($array[4] eq "\."){
+		if (($array[1] != ($ppos + 1))or($array[0] ne $pname)){
+			$rinstart	= $array[1];
+		}
+		$hash{"$array[0]-$rinstart"}	= $hash{"$array[0]-$rinstart"} . $array[3] if $hash{"$array[0]-$rinstart"};
+	}
+	$ppos	= $array[1];
+	$pname	= $array[0];
+}
+
+# Print headers to out file.
+open $FH, ">", $out or die ("\n$usage\n\n");
+print $FH join ("\n", @headers) . "\n";
+
+# For all the values in the joined array, if the value is a nucmer deletion or insertion, replace it with the value from the hash table
+# and print to the out file. If just a standard SNP or already contained in the vcf, just print to file.
+$ppos	= "";
+foreach my $val (@sorted){
+	my @array	= @$val;
+	my $pos		= $array[1] - 1;
+	if ($array[3] eq "\."){
+		if ($array[1] ne "$ppos"){
+			my ($rcon, $acon)	= split("\t", $hash{"$array[0]-$array[1]"}) if $hash{"$array[0]-$array[1]"};
+			print $FH "$array[0]\t$pos\t.\t$rcon\t$acon\t" . join("\t", @array[5..$#array]) . "\n";
+		}
+	}
+	elsif ($array[4] eq "\."){
+		$cpos	= $ppos + 1;
+		if ($array[1] != "$cpos"){
+			if ($hash{"$array[0]-$array[1]"}){
+				my ($rcon, $acon)	= split("\t", $hash{"$array[0]-$array[1]"});
+				my @vals		= split("", $acon);
+				$acon			= shift @vals;
+				$rcon			= $rcon . join("", @vals);
+				print $FH "$array[0]\t$pos\t.\t$rcon\t$acon\t" . join("\t", @array[5..$#array]) . "\n";
+			}
+		}
+	}
+	else{
+		print $FH join("\t", @array) . "\n" unless $hash{"$array[0]-$array[1]"};
+	}
+	$ppos	= $array[1];
+}
+close $FH;	
