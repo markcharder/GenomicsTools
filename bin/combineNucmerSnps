@@ -1,10 +1,13 @@
 #!/usr/bin/env perl
 
+# Takes output from show-snps and 'filterNucmerSnps' and combines the variants with a vcf file of variants from read mapping.
+
 use strict;
 use warnings;
 use Getopt::Long;
 my ($snps, $vcf, $out, $verbose)	= ("", "", "combined.vcf", "");
 
+# Parse command line options.
 GetOptions(	'snps=s'	=> \$snps,
 		'vcf=s'		=> \$vcf,
 		'out:s'		=> \$out,
@@ -23,11 +26,14 @@ my $usage	= <<USAGE;
 
 USAGE
 
+# Error message if no input.
 if (($snps eq "") or ($vcf eq "")){
 	die ("\n$usage\n\n");
 }
 
 print "\nOutput is $out.\n\n" if $verbose;
+
+# Open the nucmer snps file and gather information about all the variants; populate an array with this information.
 my (@snps, %hash, @headers, @vcf);
 open my $FH, $snps or die("\n$usage\n\n");
 while (my $line = <$FH>){
@@ -43,6 +49,7 @@ while (my $line = <$FH>){
 }
 close $FH;
 
+# Open the vcf file and populate another array with information on variants. Also, create an array containing just the headers.
 open $FH, $vcf or die ("\n$usage\n\n");
 while (my $line = <$FH>){
 	chomp $line;
@@ -53,9 +60,11 @@ while (my $line = <$FH>){
 }
 close $FH;
 
+# Combine both the vcf and nucmer snps file arrays.
 push @vcf, @snps;
 my @sorted	= sort{$a->[0] cmp $b->[0] or $a->[1] <=> $b->[1]} @vcf;
 
+# Go through the array and for each nucmer-derived insertion or deletion, add to a hash table.
 my ($pname, $cpos, $ppos, $count, $palt, $rinstart)	= ("", "", "", 1, "", "");
 foreach my $val (@sorted){
 	my @array		= @$val;
@@ -74,8 +83,12 @@ foreach my $val (@sorted){
 	$pname	= $array[0];
 }
 
+# Print headers to out file.
 open $FH, ">", $out or die ("\n$usage\n\n");
 print $FH join ("\n", @headers) . "\n";
+
+# For all the values in the joined array, if the value is a nucmer deletion or insertion, replace it with the value from the hash table
+# and print to the out file. If just a standard SNP or already contained in the vcf, just print to file.
 $ppos	= "";
 foreach my $val (@sorted){
 	my @array	= @$val;
