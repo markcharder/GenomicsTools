@@ -92,7 +92,7 @@ if ($vcf) {
 	my $delcount 	= 0;
 	my $number	= 0;
 
-	foreach my $key (keys %contiginfo){
+	foreach my $key (sort keys %contiginfo){
 		$totalsize 	+= $contiginfo{$key};
 	}
 	my @numbers	= ();
@@ -119,15 +119,15 @@ if ($vcf) {
 			if ($count == $last + 30){
 				my $pout	= int($pcomplete);
 				$last		= $count;
-				print " $pout % ";
+				print " $pout % " if $verbose;
 			}
 			if ($count == 0){
-				print "Vcf progress:	[0 % ";
+				print "Vcf progress:	[0 % " if $verbose;
 			}
 			print "." if $verbose;
 			$count++;
 			if ($count == $totalsize){
-				print " 100 %]\tComplete.\n";
+				print " 100 %]\tComplete.\n" if $verbose;
 			}
 			($snpcount, $incount, $delcount) 	= (0, 0, 0);
 		}
@@ -180,7 +180,7 @@ if ($gff) {
 	}
 	my @numbers	= ();
 	open $FH, ">",  "$output.gff.txt" or die ("\nFatal, cannot open file $output for writing.\n\n");
-	for my $key (keys %contiginfo){
+	for my $key (sort keys %contiginfo){
 		for (my $i = 1; $i <= $contiginfo{$key}; $i++){
 			if ($i != 1){
 				$start	= $start + $increment;
@@ -205,15 +205,15 @@ if ($gff) {
 			if ($count == $last + 30){
 				my $pout	= int($pcomplete);
 				$last		= $count;
-				print " $pout % ";
+				print " $pout % " if $verbose;
 			}
 			if ($count == 0){
-				print "Gff progress:	[0 % ";
+				print "Gff progress:	[0 % " if $verbose;
 			}
 			print "." if $verbose;
 			$count++;
 			if ($count == $totalsize){
-				print " 100 %]\tComplete.\n";
+				print " 100 %]\tComplete.\n" if $verbose;
 			}
 			$basecount 	= 0;
 		}
