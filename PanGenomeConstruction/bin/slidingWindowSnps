@@ -5,10 +5,11 @@ use strict;
 use warnings;
 use Getopt::Long;
 
-my ($vcf, $window, $output, $increment, $verbose);
+my ($vcf, $window, $output, $increment, $verbose, $gff);
 
 # Utility script for creating a tab delimited file containing information on number of variants per sliding window.
 GetOptions(	"--vcf=s" 	=> \$vcf,
+		"--gff=s"	=> \$gff,
 		"--window:s"	=> \$window,
 		"--output:s"	=> \$output,
 		"--increment:s"	=> \$increment,
@@ -21,15 +22,18 @@ my $usage	= <<USAGE;
 	slidingWindowSnps
 	*****************
 
-	$0	--vcf <vcf> --window <window size> --increment <increment window by...> --output <output> --verbose
+	$0	--vcf <vcf> --gff <gff> --window <window size> --increment <increment window by...> --output <output> --verbose
 
-	-	Will produce a tab delimited file contining number of variants per a particular sliding window size.
+	-	Can produce a tab delimited file contining number of variants per a particular sliding window size if vcf is provided.
+	-	Can produce a tab delimited file contining number of bases covered by features in a gff per a particular sliding window size if gff is provided.
+		-	Gff must contain '##sequence-region' lines as per gff3 standard.
+		-	Gff must also be sorted numerically in order of contig then start position.
 	-	Careful with large genomes, if window size and increment are too small, will take a very long time.
-	-	Increment defaults to same as window size (end-to-end) and output defaults to 'out.txt'.
+	-	Increment defaults to same as window size (end-to-end) and output prefix defaults to 'out'.
 
 USAGE
 
-die("\n$usage\n\n") if not $vcf;
+die("\n$usage\n\n") if not $vcf and not $gff;
 
 if (!$window){
 	$window		= 10000;
@@ -42,89 +46,178 @@ if (!$increment){
 }
 
 if (!$output){
-	$output		= "out.txt";
-	print "\nOutput defaulting to 'out.txt'\n\n" if $verbose;
+	$output		= "out";
+	print "\nOutput prefix defaulting to '$output'\n\n" if $verbose;
 }
 
-open my $FH, $vcf or die ("\n$vcf not readable.\n$usage\n\n");
-my (%contiginfo, %hash);
-while (my $line	= <$FH>){
-	chomp $line;
-	if ($line =~ /^#/){
-		next unless $line =~ /^##contig/;
-	}
-	if ($line =~ /^##contig/){
-		my @contiginfo			= split(/=|,|\>/, $line);
-		my $contigwindows		= int(($contiginfo[4] - $window) / $increment);
-		print "$contiginfo[2] is $contiginfo[4] bp, which creates $contigwindows windows.\n" if $verbose;
-		$contiginfo{$contiginfo[2]}	= $contigwindows;
-		next;
-	}
-	else {
-		my @fields	= split(/\s+/, $line);
-		my $chrpos	= "$fields[0]-$fields[1]";
-		if (length(split("", $fields[3]) > 1)){
-			$hash{$chrpos}	= "del";
+if ($vcf) {
+	open my $FH, $vcf or die ("\n$vcf not readable\n$usage\n\n");
+	my (%contiginfo, %hash);
+	while (my $line	= <$FH>){
+		chomp $line;
+		if ($line =~ /^#/){
+			next unless $line =~ /^##contig/;
 		}
-		elsif (length(split("", $fields[4]) > 1)){
-			$hash{$chrpos}	= "in";
+		if ($line =~ /^##contig/){
+			my @contiginfo			= split(/=|,|\>/, $line);
+			my $contigwindows		= int(($contiginfo[4] - $window) / $increment);
+			print "Vcf $contiginfo[2] is $contiginfo[4] bp, which creates $contigwindows windows.\n" if $verbose;
+			$contiginfo{$contiginfo[2]}	= $contigwindows;
+			next;
 		}
 		else {
-			$hash{$chrpos}	= "snp";
-		}
-	}
-}
-close $FH;
-
-my $last	= 0;
-my $pcomplete	= 0;
-my $count	= 0;
-my $totalsize	= 0;
-my $start	= 1;
-my $end		= 0;
-my $snpcount	= 0;
-my $incount	= 0;
-my $delcount 	= 0;
-my $number	= 0;
-
-foreach my $key (keys %contiginfo){
-	$totalsize 	+= $contiginfo{$key};
-}
-
-my @numbers	= ();
-open $FH, ">",  $output or die ("\nFatal, cannot open file $output for writing.\n\n");
-for my $key (keys %contiginfo){
-	for (my $i = 1; $i <= $contiginfo{$key}; $i++){
-		if ($i != 1){
-			$start	= $start + $increment;
-		}
-		$end	= $start + $window;
-		for my $ikey (keys %hash){
-			my ($chr, $pos) 	= split("-", $ikey);
-			if ($chr eq "$key"){
-				if (($pos > $start) and ($pos < $end)){
-					$snpcount++ if $hash{$ikey} eq "snp";
-					$incount++ if $hash{$ikey} eq "in";
-					$delcount++ if $hash{$ikey} eq "del";
-				}
+			my @fields	= split(/\s+/, $line);
+			my $chrpos	= "$fields[0]-$fields[1]";
+			if (length(split("", $fields[3]) > 1)){
+				$hash{$chrpos}	= "del";
+			}
+			elsif (length(split("", $fields[4]) > 1)){
+				$hash{$chrpos}	= "in";
+			}
+			else {
+				$hash{$chrpos}	= "snp";
 			}
 		}
-		print $FH "$key\t$i\t$start\t$end\t$snpcount\t$incount\t$delcount\n";
-		$pcomplete	= ($count / $totalsize) * 100;
-		if ($count == $last + 30){
-			my $pout	= int($pcomplete);
-			$last		= $count;
-			print " $pout % ";
-		}
-		if ($count == 0){
-			print "Progress:	[0 % ";
-		}
-		print "." if $verbose;
-		$count++;
-		if ($count == $totalsize){
-			print "]\tComplete.\n";
-		}
-		($snpcount, $incount, $delcount) 	= (0, 0, 0);
 	}
+	close $FH;
+
+	my $last	= 0;
+	my $pcomplete	= 0;
+	my $count	= 0;
+	my $totalsize	= 0;
+	my $start	= 1;
+	my $end		= 0;
+	my $snpcount	= 0;
+	my $incount	= 0;
+	my $delcount 	= 0;
+	my $number	= 0;
+
+	foreach my $key (keys %contiginfo){
+		$totalsize 	+= $contiginfo{$key};
+	}
+	my @numbers	= ();
+	open $FH, ">",  "$output.vcf.txt" or die ("\nFatal, cannot open file $output for writing.\n\n");
+	for my $key (keys %contiginfo){
+		for (my $i = 1; $i <= $contiginfo{$key}; $i++){
+			if ($i != 1){
+				$start	= $start + $increment;
+			}
+			$end	= $start + $window;
+			for my $ikey (keys %hash){
+				my ($chr, $pos) 	= split("-", $ikey);
+				if ($chr eq "$key"){
+					if (($pos > $start) and ($pos < $end)){
+						$snpcount++ if $hash{$ikey} eq "snp";
+						$incount++ if $hash{$ikey} eq "in";
+						$delcount++ if $hash{$ikey} eq "del";
+					}
+				}
+			}
+			my $total = $snpcount + $incount + $delcount;
+			print $FH "$key\t$i\t$start\t$end\t$snpcount\t$incount\t$delcount\t$total\n";
+			$pcomplete	= ($count / $totalsize) * 100;
+			if ($count == $last + 30){
+				my $pout	= int($pcomplete);
+				$last		= $count;
+				print " $pout % ";
+			}
+			if ($count == 0){
+				print "Vcf progress:	[0 % ";
+			}
+			print "." if $verbose;
+			$count++;
+			if ($count == $totalsize){
+				print " 100 %]\tComplete.\n";
+			}
+			($snpcount, $incount, $delcount) 	= (0, 0, 0);
+		}
+		$start	= 1;
+	}	
+	close $FH;
 }
-close $FH;
+
+
+if ($gff) {
+	my $pname	= "";
+	my $pend	= 0;
+	open my $FH, $gff or die ("\n$gff not readable\n$usage\n\n");
+	my (%contiginfo, %hash);
+	while (my $line	= <$FH>){
+		chomp $line;
+		if ($line =~ /^#/){
+			next unless $line =~ /^##sequence-region/;
+		}
+		if ($line =~ /^##sequence-region/){
+			my @contiginfo			= split(/\s+/, $line);
+			my $contigwindows		= int(($contiginfo[3] - $window) / $increment);
+			print "Gff $contiginfo[1] is $contiginfo[3] bp, which creates $contigwindows windows.\n" if $verbose;
+			$contiginfo{$contiginfo[1]}	= $contigwindows;
+			next;
+		}
+		else {
+			my @fields	= split(/\s+/, $line);
+			my $chrpos	= "$fields[0]-$fields[3]-$fields[4]";
+			if (($fields[3] > $pend) or ($fields[0] ne "$pname")){
+				$hash{$chrpos}	= ($fields[4] - $fields[3]);
+			}
+		$pname	= $fields[0];
+		$pend	= $fields[4];
+		}
+	}
+	close $FH;
+
+	my $last	= 0;
+	my $basecount	= 0;
+	my $pcomplete	= 0;
+	my $count	= 0;
+	my $totalsize	= 0;
+	my $start	= 1;
+	my $end		= 0;
+	my $number	= 0;
+
+	foreach my $key (keys %contiginfo){
+		$totalsize 	+= $contiginfo{$key};
+	}
+	my @numbers	= ();
+	open $FH, ">",  "$output.gff.txt" or die ("\nFatal, cannot open file $output for writing.\n\n");
+	for my $key (keys %contiginfo){
+		for (my $i = 1; $i <= $contiginfo{$key}; $i++){
+			if ($i != 1){
+				$start	= $start + $increment;
+			}
+			$end	= $start + $window;
+			for my $ikey (keys %hash){
+				my ($chr, $gstart, $gend) 	= split("-", $ikey);
+				if ($chr eq "$key"){
+					if (($gstart > $start) and ($gend < $end)){
+						$basecount += $hash{$ikey};
+					}
+					if (($gstart < $start) and ($gend < $end) and ($gend > $start)){
+						$basecount += ($gend - $start);
+					}
+					if (($gstart > $start) and ($gstart < $end) and ($gend > $end)){
+						$basecount += ($end - $gstart);
+					}
+				}
+			}
+			print $FH "$key\t$i\t$start\t$end\t$basecount\n";
+			$pcomplete	= ($count / $totalsize) * 100;
+			if ($count == $last + 30){
+				my $pout	= int($pcomplete);
+				$last		= $count;
+				print " $pout % ";
+			}
+			if ($count == 0){
+				print "Gff progress:	[0 % ";
+			}
+			print "." if $verbose;
+			$count++;
+			if ($count == $totalsize){
+				print " 100 %]\tComplete.\n";
+			}
+			$basecount 	= 0;
+		}
+		$start	= 1;
+	}	
+	close $FH;
+}

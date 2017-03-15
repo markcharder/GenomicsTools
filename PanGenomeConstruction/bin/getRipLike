@@ -1,0 +1,99 @@
+#!/usr/bin/env perl
+
+$| = 1;
+use strict;
+use warnings;
+use Getopt::Long;
+use Bio::DB::Fasta;
+
+# Script to add comments to vcf file declaring whether a mutation is 'RIP-like' or not.
+my ($vcf, $reference, $output, $verbose);
+
+GetOptions(	"--vcf=s" 	=> \$vcf,
+		"--reference=s"	=> \$reference,
+		"--output:s"	=> \$output,
+		"--verbose"	=> \$verbose	);
+
+my $usage	= <<USAGE;
+
+
+	getRipLike
+	**********
+	
+	Find Repeat Induced Point mutation (RIP) style variants in a vcf given the reference genome used to create it.
+	
+	$0 --vcf <vcf file>
+
+	- 	Takes a vcf formatted file and determines which snps are 'RIP-like'.
+	-	Also requires the reference genome file (the one that contributes alleles to the REF column in the vcf.
+	-	Will add descriptors to vcf description field if a snp is 'RIP-like'.
+	-	Requires bioperl.
+
+USAGE
+
+if ((!$vcf) or (!$reference)){
+	die("\n$usage\n\n");
+}
+
+if (!$output){
+	$output	= "out";
+	print "\nOutput prefix defaulting to $output.\n\n" if $verbose;
+}
+
+# Create a sequence database of the reference.
+my $db	= Bio::DB::Fasta->new($reference);
+
+# Initialise a hash of arrays containing dinucleotides and their corresponding RIP-like mutated dinucleotides.
+my %riplike	= (	"CA"	=> ["TA", "CpA<->TpA"],
+			"TG"	=> ["TA", "CpA<->TpA"],
+			"CC"	=> ["TC", "CpC<->TpC"],
+			"GG"	=> ["GA", "CpC<->TpC"],
+			"CG"	=> ["TG", "CpG<->TpG"],
+			"CG"	=> ["CA", "CpG<->TpG"],
+			"CT"	=> ["TT", "CpT<->TpT"],
+			"AG"	=> ["AA", "CpT<->TpT"]	);
+
+# Open vcf and output files.
+open my $FH, $vcf or die ("\n$vcf not readable.\n\n");
+open my $OFH,">", "$output.ripLike.vcf" or die ("\n$output is not writeable.\n\n");
+my ($previous, $pallele, $pname) = (1, "", "");
+
+# Read in vcf and get dinucleotide reference and alt sequences and determine whether they are 'RIP-like' or not.
+while (my $line = <$FH>){
+	if ($line =~ /^#/){
+		print $OFH $line;
+		next;
+	}
+	else{
+		chomp $line;
+		my @fields	= split(/\s+/, $line);
+		my $pf		= $fields[1] - 1 if $fields[1] > 1;
+		$pf		= $db->seq($fields[0], $pf, $pf) if $pf;
+		my $ref		= $pf . $fields[3] if $pf;
+		my $alt;
+		if ($fields[1] != ($previous + 1)){
+			$alt		= $pf . $fields[4] if $pf;
+		}
+		else{
+			if ($pname eq $fields[0]){
+				$alt	= $pallele . $fields[4] if length(join("", $pallele)) == 1;
+			}
+		}
+		if ($alt and $riplike{$ref}){
+			if ($riplike{$ref}[0] eq "$alt"){
+				$fields[7] =~ s/$fields[7]/$fields[7];RIP=$riplike{$ref}[1],$ref~$alt/g;
+			}
+		}
+		if ($alt and $riplike{$alt}){
+			if ($riplike{$alt}[0] eq "$ref"){
+				$fields[7] =~ s/$fields[7]/$fields[7];RIP=$riplike{$alt}[1],$alt~$ref/g;
+			}
+		}
+		print $OFH join ("\t", @fields) . "\n";
+		$pallele	= $fields[4];
+		$previous	= $fields[1];
+		$pname		= $fields[0];
+	}
+}
+close $FH;
+close $OFH;
