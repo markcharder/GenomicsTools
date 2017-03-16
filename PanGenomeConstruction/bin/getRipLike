@@ -97,9 +97,19 @@ for my $key (sort {$hash{$a}[0] cmp $hash{$b}[0] or $hash{$a}[1] <=> $hash{$b}[1
 			$hash{$key}[7] =~ s/\Q$hash{$key}[7]/$hash{$key}[7];RIP=$riplike{$pref}->[1],$pref~$palt/g;
 		}
 	}
+	if ($riplike{$aref} and $aalt){
+		if ($riplike{$aref}->[0] eq $aalt){
+			$hash{$key}[7] =~ s/\Q$hash{$key}[7]/$hash{$key}[7];RIP=$riplike{$aref}->[1],$aref~$aalt/g;
+		}
+	}
 	if ($palt and $riplike{$palt}){
 		if ($riplike{$palt}->[0] eq $pref){
 			$hash{$key}[7] =~ s/\Q$hash{$key}[7]/$hash{$key}[7];RIP=$riplike{$palt}->[1],$palt~$pref/g;
+		}
+	}
+	if ($aalt and $riplike{$aalt}){
+		if ($riplike{$aalt}->[0] eq $aref){
+			$hash{$key}[7] =~ s/\Q$hash{$key}[7]/$hash{$key}[7];RIP=$riplike{$aalt}->[1],$aalt~$aref/g;
 		}
 	}
 	print $OFH join ("\t", @{$hash{$key}}) . "\n";
