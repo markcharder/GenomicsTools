@@ -8,17 +8,18 @@ use Getopt::Long;
 # Filters snps from the nucmer show-snps file that have already been sufficiently covered with RNASeq data.
 
 # Parse options from command line.
-my ($snps, $coverage, $depth)	= ("", "", "");
+my ($snps, $coverage, $depth, $verbose)	= ("", "", "", "");
 GetOptions(	'snps=s' 	=> \$snps, 
 		'coverage=s'	=> \$coverage,
-		'depth=i'	=> \$depth);
+		'depth=i'	=> \$depth,
+		'verbose:s'	=> \$verbose);
 
 my $usage = <<USAGE;
 
 	filterNucmerSnps
 	****************
 
-	$0 --snps <snps file> --coverage <bedtools genome coverage file> --depth <depth to filter on>
+	$0 --verbose --snps <snps file> --coverage <bedtools genome coverage file> --depth <depth to filter on>
 
 	-	Takes the file output from nucmer show-snps, a coverage file output from bedtools
 		and a user-defined coverage threshold.
@@ -37,18 +38,22 @@ if (($snps eq "") or ($coverage eq "") or ($depth eq "")) {
 # Declare an empty hash, then open the coverage file. Populate the hash with keys that consist of concatenated
 # chromosome ids and positions in the coverage file. Their corresponding values are the depths at those positions.
 my %hash;
+warn "\nStep one, reading in coverage file.\n\n" if $verbose;
 open my $fh, "<", $coverage or die ("\n$usage\n");
 while (my $line = <$fh>) {
 	chomp $line;
 	my ($chr, $pos, $cov)	= split /\s+/, $line;
 	my $chrpos		= join (",", ($chr, $pos));
-	$hash{$chrpos}		= $cov;
+	if (($cov < $depth) || (($depth == 0) and ($cov == $depth))){
+		$hash{$chrpos}		= $cov;
+	}
 }
 close $fh;
 
 # Open the nucmer show-snps file. Compare each line of the file against the hash. If that chromosome and position
 # is not covered above the user-defined depth threshold, then print to stdout.
 open $fh, "<", $snps or die ("\n$usage\n");
+warn "Step two, reading in snp file.\n\n" if $verbose;
 while (my $line = <$fh>){
 	if ($line !~ /^\s+\d/){
 		print $line;
@@ -60,9 +65,7 @@ while (my $line = <$fh>){
 		my @fields	= split /\s+/, $new;
 		my $chrpos	= join (",", $fields[16],$fields[0]);
 		if (defined($hash{$chrpos})){
-			if ($hash{$chrpos} <= $depth){
 				print $line;
-			}
 		}
 	}
 }

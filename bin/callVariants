@@ -218,8 +218,8 @@ if ($filterSNPs) {
 
 # If combining the nucmer snps and the gatk snps is required, then do so.
 if ($combine){
-	system("combineNucmerSnps --snps  $prefix/$prefix.snps.filt --vcf $vcf > $prefix/$prefix.$$.comb_nucmer.vcf 2>> $prefix/nucmer.$$.logfile.txt") if !$verbose;
-	system("combineNucmerSnps --verbose --snps  $prefix/$prefix.snps.filt --vcf $vcf > $prefix/$prefix.$$.comb_nucmer.vcf 2>> $prefix/nucmer.$$.logfile.txt") if $verbose;
+	system("combineNucmerSnps --snps  $prefix/$prefix.snps.filt --vcf $vcf --output $prefix/$prefix.$$.comb_nucmer.vcf >> $prefix/nucmer.$$.logfile.txt") if !$verbose;
+	system("combineNucmerSnps --verbose --snps $prefix/$prefix.snps.filt --vcf $vcf --output $prefix/$prefix.$$.comb_nucmer.vcf >> $prefix/nucmer.$$.logfile.txt") if $verbose;
 	PanGenome::General::verboseMessage("\nCombined nucmer snps with GATK snps at $time.\n", $verbose)
 }
 
