@@ -40,8 +40,11 @@ if (!$output){
 	print "\nOutput prefix defaulting to $output.\n\n" if $verbose;
 }
 
+print "\nCreating sequence database for reference.\n\n" if $verbose;
 # Create a sequence database of the reference.
 my $db	= Bio::DB::Fasta->new($reference);
+
+print "\nCreating hash of RIP-like mutations.\n\n" if $verbose;
 
 # Initialise a hash of arrays containing dinucleotides and their corresponding RIP-like mutated dinucleotides.
 my %riplike	= (	"CA"	=> ["TA", "CpA<->TpA"],
@@ -57,6 +60,7 @@ my %riplike	= (	"CA"	=> ["TA", "CpA<->TpA"],
 open my $FH, $vcf or die ("\n$vcf not readable.\n\n");
 open my $OFH,">", "$output.ripLike.vcf" or die ("\n$output is not writeable.\n\n");
 
+print "\nReading vcf into a hash.\n\n" if $verbose;
 my %hash;
 # Read in vcf and get dinucleotide reference and alt sequences and determine whether they are 'RIP-like' or not.
 while (my $line = <$FH>){
@@ -72,6 +76,7 @@ while (my $line = <$FH>){
 }
 close $FH;
 
+print "\nGenerating output.\n\n" if $verbose;
 for my $key (sort {$hash{$a}[0] cmp $hash{$b}[0] or $hash{$a}[1] <=> $hash{$b}[1]} keys %hash){
 	my @array	= @{$hash{$key}};
 	my ($chr, $pos) = split("-", $key);
