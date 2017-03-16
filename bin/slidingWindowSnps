@@ -180,7 +180,7 @@ if ($gff) {
 	}
 	my @numbers	= ();
 	open $FH, ">",  "$output.gff.txt" or die ("\nFatal, cannot open file $output for writing.\n\n");
-	for my $key (sort keys %contiginfo){
+	for my $key (sort{no warnings; $contiginfo{$a} <=> $contiginfo{$b} || $contiginfo{$a} cmp $contiginfo{$b}} keys %contiginfo){
 		for (my $i = 1; $i <= $contiginfo{$key}; $i++){
 			if ($i != 1){
 				$start	= $start + $increment;
