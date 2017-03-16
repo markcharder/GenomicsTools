@@ -2,22 +2,25 @@
 
 # This script is a wrapper for GATK and can be used for calling variants and genotyping multiple gvcfs according
 # to GATK best practices.
-
 BEGIN {
-	my $PERLPATH;
-	open my $fh, '<', 'config.txt';
+	use File::Basename;
+	use Cwd qw(abs_path);
+	my $PERLPATH	= abs_path($0);
+	$PERLPATH	= dirname($PERLPATH);
+	my $LIBPATH;
+	open my $fh, '<', "$PERLPATH/config.txt";
 	while (my $line = <$fh>){
 		if ($line =~ /PERLPATH/){
 			chomp $line;
 			my @fields	= split "=", $line;
-			$PERLPATH	= $fields[1];
+			$LIBPATH	= $fields[1];
 		}
 	}
-	close $fh;
-	if (!$PERLPATH) {
-		die ("\nPlease set path to perl scripts in config.txt\n");
+ 	close $fh;
+	if (!$LIBPATH) {
+		die ("\nPlease set path to perl module scripts in config.txt\n");
 	}
-	push @INC, $PERLPATH;
+	push @INC, $PERLPATH, $LIBPATH;
 }
 
 use strict;
@@ -208,13 +211,15 @@ if ($filterSNPs) {
 	if (!$gcov){
 		$gcov	= PanGenome::CallVariants::coverageBedtools($prefix, $bam, $reference);
 	}
-	system("filterNucmerSnps --snps $snpfile --coverage $gcov --depth $depth > $prefix/$prefix.snps.filt 2>> $prefix/nucmer.$$.logfile.txt");
+	system("filterNucmerSnps --snps $snpfile --coverage $gcov --depth $depth > $prefix/$prefix.snps.filt 2>> $prefix/nucmer.$$.logfile.txt") if !$verbose;
+	system("filterNucmerSnps --verbose --snps $snpfile --coverage $gcov --depth $depth > $prefix/$prefix.snps.filt 2>> $prefix/nucmer.$$.logfile.txt") if $verbose;
 	PanGenome::General::verboseMessage("\nFiltered snps in regions with $depth coverage at $time.\n", $verbose);
 }
 
 # If combining the nucmer snps and the gatk snps is required, then do so.
 if ($combine){
-	system("combineNucmerSnps --snps  $prefix/$prefix.snps.filt --vcf $vcf > $prefix/$prefix.$$.comb_nucmer.vcf 2>> $prefix/nucmer.$$.logfile.txt");
+	system("combineNucmerSnps --snps  $prefix/$prefix.snps.filt --vcf $vcf > $prefix/$prefix.$$.comb_nucmer.vcf 2>> $prefix/nucmer.$$.logfile.txt") if !$verbose;
+	system("combineNucmerSnps --verbose --snps  $prefix/$prefix.snps.filt --vcf $vcf > $prefix/$prefix.$$.comb_nucmer.vcf 2>> $prefix/nucmer.$$.logfile.txt") if $verbose;
 	PanGenome::General::verboseMessage("\nCombined nucmer snps with GATK snps at $time.\n", $verbose)
 }
 

@@ -1,11 +1,15 @@
 package PanGenome::General;
 use strict;
 use warnings;
+use Cwd 'abs_path';
+use File::Basename;
 
 # General subroutines used in the various perl scripts available in this package.
 
 sub parseConfig {
 	# Parse configuration file in bin directory.
+	my $PERLPATH	= abs_path($0);
+	$PERLPATH	= dirname($PERLPATH);
 	my (	$UTILPATH,
 		$SAMTOOLSPATH, 
 		$REPEATMODELERPATH, 
@@ -27,7 +31,7 @@ sub parseConfig {
 		$EXONERATEPATH,
 		$MAKERPATH);
 
-	open my $fh, "<", "config.txt";
+	open my $fh, "<", "$PERLPATH/../bin/config.txt";
 		while (my $line = <$fh>){
 			if ($line =~ /^#/){
 				next;
