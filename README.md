@@ -1,4 +1,4 @@
-# PanGenomeConstruction
+# GenomicsTools
 
 ## Perl package used for assembly and comparison of multiple haploid genomes.
 
