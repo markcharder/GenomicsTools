@@ -292,5 +292,6 @@ sub filter_low_covered {
 	my $coverage_threshold	= int($dp * $mean);
 	$self->verbose_message("Removed de novo SNPs with at least $coverage_threshold x coverage from reads", $verbose);
 	$self->{vcf_fields}	= \%return_hash;
+	bless $self;
 }
 1;
