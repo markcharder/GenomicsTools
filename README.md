@@ -142,6 +142,26 @@ Software used in callVariants:
 	Bedtools	v2.17.0		http://bedtools.readthedocs.io/en/latest/content/installation.html
 	Nucmer		3.1		http://mummer.sourceforge.net/
 
+#### callSnpsWithNucmer
+
+This script takes two genome assemblies and uses the Nucmer show-snps utility to call SNPs. It will then reformat the output from this procedure to make it comply with
+Variant Call Format (vcf) standards. In genotype fields it will add the dummy tags 'GT:DP' and their dummy values '1/1:1'. 
+
+Usage:
+
+	callSnpsWithNucmer --reference reference.fasta --alternate alternate.fasta --species "Fungus chungus"
+
+It will also perform other user-defined procedures. Namely, 1) compare the snps to a vcf file from another source and remove discrepancies, 2) filter out SNPs that are already
+covered by a certain number of reads derived from a bam file. The input file for procedure number two must be a bedtools coverage output file, with coverage for all positions
+within the genome.
+
+Example:
+
+	callSnpsWithNucmer --reference reference.fasta --alternate alternate.fasta --species "Fungus chungus" --vcf file.vcf --coverage file.coverage --depth 0.1
+
+The depth value is the fraction of the mean depth to use as a threshold to determine whether to keep reads or not. This should be expressed as a floating point number from
+0 - 1. It defaults to 0.1.
+
 #### Notes on running on a slurm cluster
 
 In its original implementation, this package was run on a slurm cluster using a reference genome and illumina reads for alternate isolates.

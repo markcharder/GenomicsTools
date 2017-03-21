@@ -1,0 +1,121 @@
+#!/usr/bin/env perl
+
+# This script is a wrapper for GATK and can be used for calling variants and genotyping multiple gvcfs according
+# to GATK best practices.
+
+BEGIN {
+	use File::Basename;
+	use Cwd qw(abs_path);
+	my $PERLPATH	= abs_path($0);
+	$PERLPATH	= dirname($PERLPATH);
+	my $LIBPATH;
+	open my $fh, '<', "$PERLPATH/config.txt";
+	while (my $line = <$fh>){
+		if ($line =~ /PERLPATH/){
+			chomp $line;
+			my @fields	= split "=", $line;
+			$LIBPATH	= $fields[1];
+		}
+	}
+ 	close $fh;
+	if (!$LIBPATH) {
+		die ("\nPlease set path to perl module scripts in config.txt\n");
+	}
+	push @INC, $PERLPATH, $LIBPATH;
+}
+
+use PanGenome::NucmerTools;
+use strict;
+use warnings;
+use Getopt::Long;
+Getopt::Long::Configure(qw{no_auto_abbrev no_ignore_case_always});
+
+my ($help, $ref, $alt, $verbose, $species, $nucmerArgs, $filterArgs, $showSnpsArgs, $outputPrefix, $vcf, $cov, $dp)	= ("", "", "", "", "", "", "-r -q", "-Clr", "out", "", "", 0.1);
+GetOptions(	'reference|r=s'		=> \$ref,
+		'alternate|a=s' 	=> \$alt,
+		'species|s=s'		=> \$species,
+		'nucmer-args|n=s'	=> \$nucmerArgs,
+		'filter-args|f=s'	=> \$filterArgs,
+		'show-snp-args|n=s'	=> \$showSnpsArgs,
+		'output-prefix|p=s'	=> \$outputPrefix,
+		'verbose|v'		=> \$verbose,
+		'help|h'		=> \$help,
+		'vcf|c=s'		=> \$vcf,
+		'coverage|g=s'		=> \$cov,
+		'depth|d=f'		=> \$dp	);
+
+my $usageShort	= <<USAGESHORT;
+
+
+	callSnpsWithNucmer
+	******************
+
+	$0 --reference <reference> --alternate <alternate> --species <species>
+
+	To see full list of command line options use $0 -h or $0 --help
+
+USAGESHORT
+
+my $usageLong	= <<USAGELONG;
+
+
+	callSnpsWithNucmer
+	******************
+
+	$0 --reference <reference> --alternate <alternate> --species <species>
+
+
+	Description:
+
+	Calls snps between a reference and alternate assembly with nucmer and converts the output from this procedure into a vcf that conforms to
+	vcf standards. Will use an already generated vcf and coverage file to determine which SNPs to keep. The read-based SNPs will take priority
+	but the de novo derived SNPs will be used where read coverage drops off.
+
+	Options:
+
+	--reference|-r		Reference sequence in fasta format
+	--alt|-a		Alternate sequence in fasta format
+	--species|-s		Species name to add to vcf header section
+	--nucmer-args|-n	Arguments to pass to nucmer, default is none
+	--filter-args|-f	Arguments to pass to delta-filter, default is '-q -r'
+	--show-snp-args|n	Arguments to pass to show-snps, default is '-Clr'; -x 1 is always selected and should not be specified by the user
+	--output-prefix|-p	Prefix for output files
+	--versbose|-v		Print status messages to stdout when running script
+	--help|-h		Print this help message
+	--vcf|-c			Alternative vcf file that should take priority over nucmer snps in the case of discrepancies
+	--coverage|-g		Coverage file for each base in genome based on mapped reads
+	--depth|-d		User-defined coverage cutoff as a fraction of mean coverage
+
+USAGELONG
+
+if ($help){
+	die("\n\n$usageLong\n");
+}
+
+if ((!$ref) or (!$alt)){
+	die ("\n\nPlease provide both a reference and alternate strain assemblies for comparison.\n\n$usageShort\n");
+}
+if (!$species){
+	die ("\n\nNo species name provided, please provide species name.\n\n$usageShort\n");
+}
+
+
+my $obj 	= PanGenome::NucmerTools->new(	'reference'	=> $ref, 
+						'alt'		=> $alt,
+						'prefix'	=> $outputPrefix);
+
+if ($verbose){
+	PanGenome::NucmerTools->verbose_message("Aligning $ref and $alt with nucmer\nSee $outputPrefix.nucmer.logfile for details\n", $verbose);
+}
+
+$obj->nucmer_align_filter($verbose, $nucmerArgs, $filterArgs);
+$obj->show_snps($verbose, "$showSnpsArgs -x 1");
+$obj->snps_to_table($verbose);
+$obj->table_to_vcf($verbose);
+if ($cov){
+	$obj->filter_low_covered($verbose, $cov, $dp);
+}
+if ($vcf){
+	$obj->fix_vcf_nucmer($verbose, $vcf);
+}
+$obj->print_vcf($verbose, $species);
