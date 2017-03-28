@@ -1,0 +1,46 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Basename;
+
+my %hash;
+
+# For some loci, there are alternate values for the reference in different nucmer show-snps files. To fix this
+# and conform with 
+foreach my $file (@ARGV){
+	open my $FH, "<", $file or die ("\n$file not readable\n\n");
+	while (my $line	= <$FH>){
+		next if $line =~ /^#/;
+		my @fields	= split(/\s+/, $line);
+		my @chars	= split("", $fields[3]);
+		push @{$hash{"$fields[0]-$fields[1]"}}, $chars[0];
+	}
+	close $FH;
+}
+
+foreach my $key (keys %hash){
+	my @array	= @{$hash{$key}};
+	my %string 	= map { $_ => 1 } @array;
+	my @keys	= keys %string;
+	if (@keys != 1) {
+		delete $hash{$key};
+	}
+}
+
+
+foreach my $file (@ARGV){
+	open my $FH, "<", $file or die ("\n$file not readable\n\n");
+	open my $OF, ">", basename($file) . ".filt" or die("\n$file.filt not writeable\n\n");
+	while (my $line	= <$FH>){
+		if ($line =~ /^#/){
+			print $OF $line;
+			next;
+		}
+		my @fields	= split(/\s+/, $line);
+		print $OF $line if $hash{"$fields[0]-$fields[1]"};
+	}
+	close $OF;
+	close $FH;
+}
+

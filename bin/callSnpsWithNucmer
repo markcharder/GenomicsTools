@@ -50,9 +50,9 @@ my $usageShort	= <<USAGESHORT;
 	callSnpsWithNucmer
 	******************
 
-	$0 --reference <reference> --alternate <alternate> --species <species>
+	callSnpsWithNucmer --reference <reference> --alternate <alternate> --species <species>
 
-	To see full list of command line options use $0 -h or $0 --help
+	To see full list of command line options use callSnpsWithNucmer -h or callSnpsWithNucmer --help
 
 USAGESHORT
 
@@ -62,7 +62,7 @@ my $usageLong	= <<USAGELONG;
 	callSnpsWithNucmer
 	******************
 
-	$0 --reference <reference> --alternate <alternate> --species <species>
+	callSnpsWithNucmer --reference <reference> --alternate <alternate> --species <species>
 
 
 	Description:
@@ -93,10 +93,10 @@ if ($help){
 }
 
 if ((!$ref) or (!$alt)){
-	die ("\n\nPlease provide both a reference and alternate strain assemblies for comparison.\n\n$usageShort\n");
+	die ("\n\n\tPlease provide both a reference and alternate strain assemblies for comparison.\n\n$usageShort\n");
 }
 if (!$species){
-	die ("\n\nNo species name provided, please provide species name.\n\n$usageShort\n");
+	die ("\n\n\tNo species name provided, please provide species name.\n\n$usageShort\n");
 }
 
 

@@ -69,12 +69,12 @@ sub show_snps {
 sub snps_to_table {
 
 	my ($self, $verbose)	= @_;
-	open my $FH, "<", $self->{snp_file} or die("\nCannot open $self->{snp_file}\n\n");
 	my %hash_headers;
 	my @snps;
 	my %hash_info;
 	my @return_snps;
 
+	open my $FH, "<", $self->{snp_file} or die ("\nCan't open snp file\n\n");
 	while (my $line = <$FH>){
 
         	chomp $line;
@@ -84,7 +84,7 @@ sub snps_to_table {
 			my @fields = split(/\s+/, $line);
 			my @return_fields = split(/\s+/, $line);
 			if (!$hash_headers{$fields[17]}){
-				my @array	= (1, $fields[7]);
+				my @array	= (1, $fields[9]);
 				$hash_headers{$fields[17]}	= \@array;
 			}
 
@@ -191,7 +191,7 @@ sub print_vcf {
 	print $FH	"##INFO=<ID=ORIGIN,Number=1,Type=String,Description=\"How this snp was imputed\">\n" .
 			"##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\"\n" .
 			"##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Read Depth\">\n" .
-			"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t$self->{alt}\n";
+			"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t$self->{alt}>\n";
 	my $vcf_fields	= $self->{vcf_fields};
 	my %drvcf	= %$vcf_fields;
 

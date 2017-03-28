@@ -71,11 +71,21 @@ while (my $line = <$FH>){
 	else{
 		chomp $line;
 		my @fields	= split(/\s+/, $line);
-		$hash{"$fields[0]-$fields[1]"} = \@fields;
+		my @alts	= split(",", $fields[4]);
+		if (@alts > 1){
+			foreach my $alt (@alts){
+				my @array	= (@fields[0..3], $alt, @fields[5..$#fields]);
+				$hash{"$fields[0]-$fields[1]-$alt"} 	= \@array;
+			}
+		}
+		else {
+			$hash{"$fields[0]-$fields[1]"} = \@fields;
+		}
 	}
 }
 close $FH;
 
+my ($switch, $previous)	= (0, "");
 print "\nGenerating output.\n\n" if $verbose;
 for my $key (sort {$hash{$a}[0] cmp $hash{$b}[0] or $hash{$a}[1] <=> $hash{$b}[1]} keys %hash){
 	my @array	= @{$hash{$key}};
@@ -117,6 +127,26 @@ for my $key (sort {$hash{$a}[0] cmp $hash{$b}[0] or $hash{$a}[1] <=> $hash{$b}[1
 			$hash{$key}[7] =~ s/\Q$hash{$key}[7]/$hash{$key}[7];RIP=$riplike{$aalt}->[1],$aalt~$aref/g;
 		}
 	}
-	print $OFH join ("\t", @{$hash{$key}}) . "\n";
+	if ($key eq "$chr-$pos-$array[4]"){
+		$switch		= 1;
+	}
+	else {
+		$switch		= 0;
+		$previous	= "";
+	}
+	my @fields	= @{$hash{$key}};
+	if ($switch == 1){
+		if ($previous ne "") {
+			print $OFH join("\t", @fields[0..3]) . "\t$previous,$fields[4]\t" . join("\t", @fields[5..$#fields]) . "\n";
+		}
+		else{
+			print $OFH join("\t", @fields[0..3]) . "\t$fields[4]\t" . join("\t", @fields[5..$#fields]) . "\n";
+		}
+		$previous	= $fields[4] . $previous;
+	}
+	else {
+		print $OFH join("\t", @fields) . "\n";
+	}
 }
+
 close $OFH;
